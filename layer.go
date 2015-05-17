@@ -19,10 +19,15 @@ package gofpdf
 // Routines in this file are translated from
 // http://www.fpdf.org/en/script/script97.php
 
+import (
+//"fmt"
+)
+
 type layerType struct {
-	name    string
-	visible bool
-	objNum  int // object number
+	name     string
+	visible  bool
+	objNum   int // object number
+	children []int
 }
 
 type layerRecType struct {
@@ -46,8 +51,19 @@ func (f *Fpdf) layerInit() {
 // Layers are demonstrated in tutorial 26.
 func (f *Fpdf) AddLayer(name string, visible bool) (layerID int) {
 	layerID = len(f.layer.list)
-	f.layer.list = append(f.layer.list, layerType{name: name, visible: visible})
+	f.layer.list = append(f.layer.list, layerType{name: name, visible: visible, children: make([]int, 0)})
 	return
+}
+
+// AddChild defines a layer to other later as child layer. Parent layer will become
+// folder of layers.
+//
+// Layers are demonstrated in tutorial 26.
+func (f *Fpdf) AddChild(parentId int, childId int) {
+	l := f.layer.list[parentId]
+	l.children = append(l.children, childId)
+	f.layer.list[parentId] = l
+
 }
 
 // BeginLayer is called to begin adding content to the specified layer. All
@@ -105,13 +121,36 @@ func (f *Fpdf) layerPutResourceDict() {
 
 }
 
+func getChildrenList(f *Fpdf) (children map[int]bool) {
+	children = make(map[int]bool)
+	for _, layer := range f.layer.list {
+		for _, childId := range layer.children {
+			child := f.layer.list[childId]
+			children[child.objNum] = true
+		}
+	}
+	return
+}
+
 func (f *Fpdf) layerPutCatalog() {
 	if len(f.layer.list) > 0 {
+		children := getChildrenList(f)
 		onStr := ""
 		offStr := ""
 		for _, layer := range f.layer.list {
-			onStr += sprintf("%d 0 R ", layer.objNum)
-			if !layer.visible {
+			//fmt.Println(layer.name, "  ", layer.children)
+			if !children[layer.objNum] {
+				onStr += sprintf("%d 0 R ", layer.objNum)
+			}
+			if len(layer.children) > 0 {
+				onStr += " ["
+				for _, childId := range layer.children {
+					child := f.layer.list[childId]
+					onStr += sprintf("%d 0 R ", child.objNum)
+				}
+				onStr += "] "
+			}
+			if !layer.visible && children[layer.objNum] {
 				offStr += sprintf("%d 0 R ", layer.objNum)
 			}
 		}
