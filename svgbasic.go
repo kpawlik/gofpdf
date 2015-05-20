@@ -20,6 +20,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -36,8 +37,55 @@ func init() {
 
 // SVGBasicSegmentType describes a single curve or position segment
 type SVGBasicSegmentType struct {
-	Cmd byte // See http://www.w3.org/TR/SVG/paths.html for path command structure
-	Arg [6]float64
+	Cmd   byte // See http://www.w3.org/TR/SVG/paths.html for path command structure
+	Arg   [6]float64
+	Class string
+	Fill  bool
+}
+
+type textType struct {
+	Transform string
+	Text      string
+}
+
+func (t textType) XY() (x, y float64) {
+	re := regexp.MustCompile(`\d+\.\d+`)
+	if sstr := re.FindAllString(t.Transform, -1); len(sstr) > 0 {
+		x, _ = strconv.ParseFloat(sstr[4], 64)
+		y, _ = strconv.ParseFloat(sstr[5], 64)
+	}
+	return
+
+}
+
+type srcRect struct {
+	X float64 `xml:"x,attr"`
+	Y float64 `xml:"y,attr"`
+	W float64 `xml:"width,attr"`
+	H float64 `xml:"height,attr"`
+}
+
+type pathType struct {
+	D     string `xml:"d,attr"`
+	Class string `xml:"class,attr"`
+}
+type gType struct {
+	Paths []pathType `xml:"path"`
+	Texts []srcText  `xml:"text"`
+}
+type srcText struct {
+	Transform string `xml:"transform,attr"`
+	Tspan     string `xml:"tspan"`
+}
+type srcType struct {
+	ViewBox string     `xml:"viewBox,attr" `
+	Rect    srcRect    `xml:"clipPath>rect"`
+	Wd      float64    `xml:"width,attr"`
+	Ht      float64    `xml:"height,attr"`
+	Paths   []pathType `xml:"path"`
+	G       []gType    `xml:"g"`
+	Styles  []string   `xml:"defs>style"`
+	Texts   []srcText  `xml:"text"`
 }
 
 func absolutizePath(segs []SVGBasicSegmentType) {
@@ -83,9 +131,15 @@ func absolutizePath(segs []SVGBasicSegmentType) {
 	}
 }
 
-func pathParse(pathStr string) (segs []SVGBasicSegmentType, err error) {
-	var seg SVGBasicSegmentType
-	var j, argJ, argCount, prevArgCount int
+func pathParse(path pathType) (segs []SVGBasicSegmentType, err error) {
+	var (
+		seg                             SVGBasicSegmentType
+		j, argJ, argCount, prevArgCount int
+		fill                            bool
+	)
+	pathStr := path.D
+	seg.Class = path.Class
+	//fmt.Printf("Path str 1 : %s\n", pathStr)
 	setup := func(n int) {
 		// It is not strictly necessary to clear arguments, but result may be clearer
 		// to caller
@@ -99,7 +153,13 @@ func pathParse(pathStr string) (segs []SVGBasicSegmentType, err error) {
 	var str string
 	var c byte
 	pathStr = pathCmdSub.Replace(pathStr)
+	//fmt.Printf("Path str 2 : %s\n", pathStr)
+	if pLen := len(pathStr); pLen > 0 {
+		fill = pathStr[pLen-1] == 'z'
+	}
+
 	strList := strings.Fields(pathStr)
+	//fmt.Printf("Fields : %s\n", strList)
 	count := len(strList)
 	for j = 0; j < count && err == nil; j++ {
 		str = strList[j]
@@ -130,7 +190,7 @@ func pathParse(pathStr string) (segs []SVGBasicSegmentType, err error) {
 				case 'L', 'l': // Absolute/relative lineto: x, y
 					setup(2)
 				default:
-					err = fmt.Errorf("expecting SVG path command at position %d, got %s", j, str)
+					//err = fmt.Errorf("expecting SVG path command at position %d, got %s", j, str)
 				}
 			} else {
 				seg.Arg[argJ], err = strconv.ParseFloat(str, 64)
@@ -151,6 +211,9 @@ func pathParse(pathStr string) (segs []SVGBasicSegmentType, err error) {
 			err = fmt.Errorf("expecting additional (%d) numeric arguments", argCount)
 		}
 	}
+	for i := range segs {
+		segs[i].Fill = fill
+	}
 	return
 }
 
@@ -158,7 +221,10 @@ func pathParse(pathStr string) (segs []SVGBasicSegmentType, err error) {
 // basic vector image
 type SVGBasicType struct {
 	Wd, Ht   float64
+	X, Y     float64
 	Segments [][]SVGBasicSegmentType
+	Styles   CssDef
+	Texts    []textType
 }
 
 // SVGBasicParse parses a simple scalable vector graphics (SVG) buffer into a
@@ -168,27 +234,45 @@ type SVGBasicType struct {
 // lineto: x, y), and 'C' (absolute cubic Bézier curve: cx0, cy0, cx1, cy1,
 // x1,y1).
 func SVGBasicParse(buf []byte) (sig SVGBasicType, err error) {
-	type pathType struct {
-		D string `xml:"d,attr"`
-	}
-	type srcType struct {
-		Wd    float64    `xml:"width,attr"`
-		Ht    float64    `xml:"height,attr"`
-		Paths []pathType `xml:"path"`
-	}
 	var src srcType
 	err = xml.Unmarshal(buf, &src)
+	rec := src.Rect
+	fmt.Printf("x %f y %f w %f h %f\n", rec.X, rec.Y, rec.W, rec.H)
 	if err == nil {
+		//		if src.Wd == 0 && src.Ht == 0 && src.ViewBox != "" {
+		//			ints := strings.Split(src.ViewBox, " ")
+		//			src.Wd, _ = strconv.ParseFloat(ints[2], 64)
+		//			src.Ht, _ = strconv.ParseFloat(ints[3], 64)
+		//		}
+		src.Wd = rec.W
+		src.Ht = rec.H
+		sig.Styles = parseSvgStyles(src.Styles)
 		if src.Wd > 0 && src.Ht > 0 {
+			paths := make([]pathType, 0, 40)
+			texts := make([]srcText, 0, 40)
+			paths = append(paths, src.Paths...)
+			texts = append(texts, src.Texts...)
+			for _, g := range src.G {
+				paths = append(paths, g.Paths...)
+				texts = append(texts, g.Texts...)
+			}
 			sig.Wd, sig.Ht = src.Wd, src.Ht
+			sig.X, sig.Y = rec.X, rec.Y
 			var segs []SVGBasicSegmentType
-			for _, path := range src.Paths {
+			//for _, path := range src.Paths {
+			for _, path := range paths {
 				if err == nil {
-					segs, err = pathParse(path.D)
+					segs, err = pathParse(path)
+					if err != nil {
+						fmt.Errorf("Parse path error %v\n", err)
+					}
 					if err == nil {
 						sig.Segments = append(sig.Segments, segs)
 					}
 				}
+			}
+			for _, text := range texts {
+				sig.Texts = append(sig.Texts, textType{text.Transform, text.Tspan})
 			}
 		} else {
 			err = fmt.Errorf("unacceptable values for basic SVG extent: %.2f x %.2f",

@@ -16,6 +16,17 @@
 
 package gofpdf
 
+import (
+	"encoding/hex"
+	//	"fmt"
+	"strconv"
+	"strings"
+)
+
+const (
+	LINE_W = 0.1
+)
+
 // SVGBasicWrite renders the paths encoded in the basic SVG image specified by
 // sb. The scale value is used to convert the coordinates in the path to the
 // unit of measure specified in New(). The current position (as set with a call
@@ -27,16 +38,43 @@ package gofpdf
 // See example 20 for a demonstration of this function.
 func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	originX, originY := f.GetXY()
-	var x, y, newX, newY float64
-	var cx0, cy0, cx1, cy1 float64
-	var path []SVGBasicSegmentType
-	var seg SVGBasicSegmentType
+	var (
+		x, y, newX, newY   float64
+		cx0, cy0, cx1, cy1 float64
+		path               []SVGBasicSegmentType
+		seg                SVGBasicSegmentType
+		points             []PointType
+	)
 	val := func(arg int) (float64, float64) {
 		return originX + scale*seg.Arg[arg], originY + scale*seg.Arg[arg+1]
 	}
 	for j := 0; j < len(sb.Segments) && f.Ok(); j++ {
 		path = sb.Segments[j]
+		if len(path) > 0 && path[0].Fill {
+			points = make([]PointType, 0)
+		} else {
+			points = nil
+		}
 		for k := 0; k < len(path) && f.Ok(); k++ {
+			class := seg.Class
+			f.SetLineWidth(LINE_W)
+			style := sb.getStyle(class)
+			//fmt.Println(style)
+			if stroke := style["stroke"]; stroke != "" {
+				color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
+				f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
+				//fmt.Println("Set draw color")
+			}
+			if strokeWidth := style["stroke-width"]; strokeWidth != "" {
+				w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
+				f.SetLineWidth(LINE_W * w)
+			}
+			if fill := style["fill"]; fill != "" && fill != "none" {
+				color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
+				f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
+				//fmt.Println("Set draw color")
+			}
+
 			seg = path[k]
 			switch seg.Cmd {
 			case 'M':
@@ -55,6 +93,29 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			default:
 				f.SetErrorf("Unexpected path command '%c'", seg.Cmd)
 			}
+			if seg.Fill {
+				points = append(points, PointType{x, y})
+			}
 		}
+		if points != nil {
+			c1, c2, c3 := f.GetFillColor()
+
+			if c1 != 255 || c2 != 255 || c3 != 255 {
+				f.Polygon(points, "F")
+			}
+		}
+	}
+}
+
+func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
+	for _, t := range sb.Texts {
+		if len(t.Text) == 0 {
+			continue
+		}
+		x, y := t.XY()
+		p.TransformBegin()
+		p.TransformTranslate(x*scale, y*scale)
+		p.Text(0, 0, t.Text)
+		p.TransformEnd()
 	}
 }

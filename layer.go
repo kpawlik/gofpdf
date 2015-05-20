@@ -133,28 +133,30 @@ func getChildrenList(f *Fpdf) (children map[int]bool) {
 }
 
 func (f *Fpdf) layerPutCatalog() {
+	var (
+		onStr, ordStr, offStr string
+	)
 	if len(f.layer.list) > 0 {
 		children := getChildrenList(f)
-		onStr := ""
-		offStr := ""
 		for _, layer := range f.layer.list {
 			//fmt.Println(layer.name, "  ", layer.children)
 			if !children[layer.objNum] {
-				onStr += sprintf("%d 0 R ", layer.objNum)
+				ordStr += sprintf("%d 0 R ", layer.objNum)
 			}
+			onStr += sprintf("%d 0 R ", layer.objNum)
 			if len(layer.children) > 0 {
-				onStr += " ["
+				ordStr += " ["
 				for _, childId := range layer.children {
 					child := f.layer.list[childId]
-					onStr += sprintf("%d 0 R ", child.objNum)
+					ordStr += sprintf("%d 0 R ", child.objNum)
 				}
-				onStr += "] "
+				ordStr += "] "
 			}
-			if !layer.visible && children[layer.objNum] {
+			if !layer.visible {
 				offStr += sprintf("%d 0 R ", layer.objNum)
 			}
 		}
-		f.outf("/OCProperties <</OCGs [%s] /D <</OFF [%s] /Order [%s]>>>>", onStr, offStr, onStr)
+		f.outf("/OCProperties <</OCGs [%s] /D << /OFF [%s] /Order [%s]>>>>", onStr, offStr, ordStr)
 		if f.layer.openLayerPane {
 			f.out("/PageMode /UseOC")
 		}
