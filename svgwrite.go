@@ -24,7 +24,8 @@ import (
 )
 
 const (
-	LINE_W = 0.1
+	LINE_WIDTH = 0.1
+	FONT_SIZE  = 4.0
 )
 
 // SVGBasicWrite renders the paths encoded in the basic SVG image specified by
@@ -44,6 +45,9 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 		path               []SVGBasicSegmentType
 		seg                SVGBasicSegmentType
 		points             []PointType
+		prevFill           string
+		prevStroke         string
+		prevStrokeWidth    string
 	)
 	val := func(arg int) (float64, float64) {
 		return originX + scale*seg.Arg[arg], originY + scale*seg.Arg[arg+1]
@@ -51,28 +55,28 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	for j := 0; j < len(sb.Segments) && f.Ok(); j++ {
 		path = sb.Segments[j]
 		if len(path) > 0 && path[0].Fill {
-			points = make([]PointType, 0)
+			points = make([]PointType, 0, 6)
 		} else {
 			points = nil
 		}
 		for k := 0; k < len(path) && f.Ok(); k++ {
 			class := seg.Class
-			f.SetLineWidth(LINE_W)
+			f.SetLineWidth(LINE_WIDTH)
 			style := sb.getStyle(class)
-			//fmt.Println(style)
-			if stroke := style["stroke"]; stroke != "" {
+			if stroke := style["stroke"]; stroke != "" && stroke != prevStroke && stroke != "none" {
 				color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
 				f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
-				//fmt.Println("Set draw color")
+				prevStroke = stroke
 			}
-			if strokeWidth := style["stroke-width"]; strokeWidth != "" {
+			if strokeWidth := style["stroke-width"]; strokeWidth != prevStrokeWidth {
 				w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
-				f.SetLineWidth(LINE_W * w)
+				f.SetLineWidth(LINE_WIDTH * w)
+				prevStrokeWidth = strokeWidth
 			}
-			if fill := style["fill"]; fill != "" && fill != "none" {
+			if fill := style["fill"]; fill != "" && fill != prevFill && fill != "none" {
 				color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
 				f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
-				//fmt.Println("Set draw color")
+				prevFill = fill
 			}
 
 			seg = path[k]
@@ -99,7 +103,6 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 		}
 		if points != nil {
 			c1, c2, c3 := f.GetFillColor()
-
 			if c1 != 255 || c2 != 255 || c3 != 255 {
 				f.Polygon(points, "F")
 			}
@@ -108,14 +111,25 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 }
 
 func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
-	for _, t := range sb.Texts {
-		if len(t.Text) == 0 {
+	for _, text := range sb.Texts {
+		if len(text.Text) == 0 {
 			continue
 		}
-		x, y := t.XY()
+		//fontSize := FONT_SIZE * text.FontScale()
+		x, y := text.XY()
+		str := text.Text
+		p.SetFontSize(FONT_SIZE * text.FontScale())
+		tx, ty := x*scale, y*scale
+		if text.Style["text-anchor"] == "middle" {
+			textSize := p.GetStringWidth(str)
+			tx -= textSize / 2
+		}
 		p.TransformBegin()
-		p.TransformTranslate(x*scale, y*scale)
-		p.Text(0, 0, t.Text)
+		p.TransformTranslate(tx, ty)
+		if text.rotation != 0 {
+			p.TransformRotate(text.rotation, 0, 0)
+		}
+		p.Text(0, 0, str)
 		p.TransformEnd()
 	}
 }

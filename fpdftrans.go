@@ -14,6 +14,50 @@ type TransformMatrix struct {
 	A, B, C, D, E, F float64
 }
 
+//
+// Delta transformation point for TRansformation
+//
+func (t TransformMatrix) deltaTransformPoint(point PointType) PointType {
+
+	dx := (point.X * t.A) + (point.Y * t.C) + 0
+	dy := (point.X * t.B) + (point.Y * t.D) + 0
+	return PointType{dx, dy}
+}
+
+//
+// Returns ScaleY and Rotation values for Transformation
+//
+func (t TransformMatrix) scaleYAndRotation() (scaleY, rotation float64) {
+	px := t.deltaTransformPoint(PointType{X: 0, Y: 1})
+	rotation = ((180 / math.Pi) * math.Atan2(px.Y, px.X)) - 90
+	scaleY = math.Sqrt((t.C * t.C) + (t.D * t.D))
+	return
+}
+
+//
+// Decompose transform Translate, Scale, Skew and Rotation parts
+//
+func (t TransformMatrix) decompose() map[string]float64 {
+	res := make(map[string]float64)
+	// @see https://gist.github.com/2052247
+
+	// calculate delta transform point
+	px := t.deltaTransformPoint(PointType{X: 0, Y: 1})
+	py := t.deltaTransformPoint(PointType{X: 1, Y: 0})
+	// calculate skew
+	skewX := (180 / math.Pi) * math.Atan2(px.Y, px.X)
+	skewY := (180 / math.Pi) * math.Atan2(py.Y, py.X)
+
+	res["translateX"] = t.E
+	res["translateY"] = t.F
+	res["scaleX"] = math.Sqrt((t.A * t.A) + (t.B * t.B))
+	res["scaleY"] = math.Sqrt((t.C * t.C) + (t.D * t.D))
+	res["skewX"] = skewX - 90
+	res["skewY"] = skewY
+	res["rotation"] = skewX - 90 // rotation is the same as skew x
+	return res
+}
+
 // TransformBegin sets up a transformation context for subsequent text,
 // drawings and images. The typical usage is to immediately follow a call to
 // this method with a call to one or more of the transformation methods such as

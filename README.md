@@ -1,4 +1,7 @@
-![gofpdf](image/logo_gofpdf.jpg?raw=true "gofpdf")
+
+This fork has been created to generate layered PDFs from particular SVG type of files.
+
+Please use original library [http://godoc.org/github.com/jung-kurt/gofpdf][1].
 
 Package gofpdf implements a PDF document generator with high level support for
 text, drawing and images.
