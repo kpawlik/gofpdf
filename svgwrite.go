@@ -45,10 +45,9 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 		path               []SVGBasicSegmentType
 		seg                SVGBasicSegmentType
 		points             []PointType
-		prevFill           string
-		prevStroke         string
-		prevStrokeWidth    string
+		prevVals           map[string]string
 	)
+	prevVals = make(map[string]string)
 	val := func(arg int) (float64, float64) {
 		return originX + scale*seg.Arg[arg], originY + scale*seg.Arg[arg+1]
 	}
@@ -60,24 +59,25 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			points = nil
 		}
 		for k := 0; k < len(path) && f.Ok(); k++ {
-			class := seg.Class
 			f.SetLineWidth(LINE_WIDTH)
+			class := seg.Class
 			style := sb.getStyle(class)
-			if stroke := style["stroke"]; stroke != "" && stroke != prevStroke && stroke != "none" {
-				color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
-				f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
-				prevStroke = stroke
-			}
-			if strokeWidth := style["stroke-width"]; strokeWidth != prevStrokeWidth {
-				w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
-				f.SetLineWidth(LINE_WIDTH * w)
-				prevStrokeWidth = strokeWidth
-			}
-			if fill := style["fill"]; fill != "" && fill != prevFill && fill != "none" {
-				color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
-				f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
-				prevFill = fill
-			}
+			f.SetStyle(style, prevVals)
+			//			if stroke := style["stroke"]; stroke != "" && stroke != prevStroke && stroke != "none" {
+			//				color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
+			//				f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
+			//				prevStroke = stroke
+			//			}
+			//			if strokeWidth := style["stroke-width"]; strokeWidth != prevStrokeWidth {
+			//				w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
+			//				f.SetLineWidth(LINE_WIDTH * w)
+			//				prevStrokeWidth = strokeWidth
+			//			}
+			//			if fill := style["fill"]; fill != "" && fill != prevFill && fill != "none" {
+			//				color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
+			//				f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
+			//				prevFill = fill
+			//			}
 
 			seg = path[k]
 			switch seg.Cmd {
@@ -111,13 +111,21 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 }
 
 func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
+	prevVals := make(map[string]string)
 	for _, text := range sb.Texts {
 		if len(text.Text) == 0 {
 			continue
 		}
 		//fontSize := FONT_SIZE * text.FontScale()
-		x, y := text.XY()
+
+		p.SetStyle(text.Style, prevVals)
+		//fmt.Println(text.Class)
+		style := sb.Styles["text."+text.Class]
 		str := text.Text
+		//fmt.Printf("%s\n  %v\n  %v\n", str, text.Style, style)
+		p.SetStyle(style, prevVals)
+		x, y := text.XY()
+
 		p.SetFontSize(FONT_SIZE * text.FontScale())
 		tx, ty := x*scale, y*scale
 		if text.Style["text-anchor"] == "middle" {
@@ -131,5 +139,37 @@ func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
 		}
 		p.Text(0, 0, str)
 		p.TransformEnd()
+	}
+}
+
+func (f *Fpdf) SetStyle(style CssElemet, prevVals map[string]string) {
+	var (
+		key string
+	)
+	//style := sb.Styles[class]
+	key = "stroke"
+	if stroke, found := style[key]; found && stroke != "none" {
+		if prevStroke := prevVals[key]; prevStroke != stroke {
+			color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
+			f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
+			prevVals[key] = stroke
+		}
+	}
+	key = "stroke-width"
+	if strokeWidth, found := style[key]; found {
+		if prevStrokeWidth := prevVals[key]; strokeWidth != prevStrokeWidth {
+			w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
+			f.SetLineWidth(LINE_WIDTH * w)
+			prevVals[key] = prevStrokeWidth
+		}
+	}
+	key = "fill"
+	if fill, found := style[key]; found && fill != "none" {
+		if prevFill := prevVals[key]; prevFill != fill {
+			color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
+			f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
+			f.SetTextColor(int(color[0]), int(color[1]), int(color[2]))
+			prevVals[key] = prevFill
+		}
 	}
 }

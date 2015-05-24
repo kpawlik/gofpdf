@@ -117,17 +117,16 @@ type srcGType struct {
 	Texts []srcText     `xml:"text"`
 }
 type srcText struct {
-	Transform string `xml:"transform,attr"`
-	Tspan     string `xml:"tspan"`
-	Value     string `xml:",chardata"`
-	Class     string `xml:"class,attr"`
-	Style     string `xml:"style,attr"`
+	Transform string   `xml:"transform,attr"`
+	Tspan     []string `xml:"tspan"`
+	Value     string   `xml:",chardata"`
+	Class     string   `xml:"class,attr"`
+	Style     string   `xml:"style,attr"`
 }
 
 func (t srcText) Text() string {
-	text := t.Tspan
-	if len(text) > 0 {
-	} else {
+	text := strings.Join(t.Tspan, "")
+	if len(text) == 0 {
 		text = t.Value
 	}
 	return strings.TrimSpace(text)
