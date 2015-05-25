@@ -18,7 +18,6 @@ package gofpdf
 
 import (
 	"encoding/hex"
-	//	"fmt"
 	"strconv"
 	"strings"
 )
@@ -63,21 +62,6 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			class := seg.Class
 			style := sb.getStyle(class)
 			f.SetStyle(style, prevVals)
-			//			if stroke := style["stroke"]; stroke != "" && stroke != prevStroke && stroke != "none" {
-			//				color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
-			//				f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
-			//				prevStroke = stroke
-			//			}
-			//			if strokeWidth := style["stroke-width"]; strokeWidth != prevStrokeWidth {
-			//				w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
-			//				f.SetLineWidth(LINE_WIDTH * w)
-			//				prevStrokeWidth = strokeWidth
-			//			}
-			//			if fill := style["fill"]; fill != "" && fill != prevFill && fill != "none" {
-			//				color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
-			//				f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
-			//				prevFill = fill
-			//			}
 
 			seg = path[k]
 			switch seg.Cmd {
@@ -116,29 +100,32 @@ func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
 		if len(text.Text) == 0 {
 			continue
 		}
-		//fontSize := FONT_SIZE * text.FontScale()
-
 		p.SetStyle(text.Style, prevVals)
-		//fmt.Println(text.Class)
 		style := sb.Styles["text."+text.Class]
-		str := text.Text
-		//fmt.Printf("%s\n  %v\n  %v\n", str, text.Style, style)
 		p.SetStyle(style, prevVals)
 		x, y := text.XY()
+		middle := text.Style["text-anchor"] == "middle"
+		fontSize := FONT_SIZE * text.FontScale()
+		p.SetFontSize(fontSize)
+		_, pointsFontSize := p.GetFontSize()
+		yShift := 0.0
 
-		p.SetFontSize(FONT_SIZE * text.FontScale())
-		tx, ty := x*scale, y*scale
-		if text.Style["text-anchor"] == "middle" {
-			textSize := p.GetStringWidth(str)
-			tx -= textSize / 2
+		for _, str := range text.Text {
+			p.TransformBegin()
+			tx, ty := (x * scale), ((y * scale) + yShift)
+			if middle {
+				textSize := p.GetStringWidth(str)
+				tx -= textSize / 2
+			}
+			p.TransformTranslate(tx, ty)
+			if text.rotation != 0 {
+				p.TransformRotate(text.rotation, 0, 0)
+			}
+			p.Text(0, 0, str)
+			p.TransformEnd()
+			yShift += pointsFontSize
 		}
-		p.TransformBegin()
-		p.TransformTranslate(tx, ty)
-		if text.rotation != 0 {
-			p.TransformRotate(text.rotation, 0, 0)
-		}
-		p.Text(0, 0, str)
-		p.TransformEnd()
+
 	}
 }
 
@@ -146,7 +133,6 @@ func (f *Fpdf) SetStyle(style CssElemet, prevVals map[string]string) {
 	var (
 		key string
 	)
-	//style := sb.Styles[class]
 	key = "stroke"
 	if stroke, found := style[key]; found && stroke != "none" {
 		if prevStroke := prevVals[key]; prevStroke != stroke {

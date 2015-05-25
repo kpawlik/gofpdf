@@ -56,7 +56,7 @@ type SVGBasicType struct {
 
 type textType struct {
 	Transform                 string
-	Text                      string
+	Text                      []string
 	Class                     string
 	Style                     CssElemet
 	matrix                    []float64
@@ -67,7 +67,7 @@ func NewTextType(src srcText) textType {
 	var (
 		a, b, c, d, e, f, scale, rotation float64
 	)
-	re := regexp.MustCompile(`\d+\.\d+`)
+	re := regexp.MustCompile(`\-*\d+\.\d+`)
 	if sstr := re.FindAllString(src.Transform, -1); len(sstr) == 6 {
 		b, _ = strconv.ParseFloat(sstr[1], 64)
 		c, _ = strconv.ParseFloat(sstr[2], 64)
@@ -79,6 +79,7 @@ func NewTextType(src srcText) textType {
 		} else {
 			a, _ = strconv.ParseFloat(sstr[0], 64)
 			trm := TransformMatrix{a, b, c, d, e, f}
+			fmt.Printf("TM:%v\n", trm)
 			scale, rotation = trm.scaleYAndRotation()
 		}
 	}
@@ -124,12 +125,17 @@ type srcText struct {
 	Style     string   `xml:"style,attr"`
 }
 
-func (t srcText) Text() string {
-	text := strings.Join(t.Tspan, "")
-	if len(text) == 0 {
-		text = t.Value
+func (t srcText) Text() []string {
+	texts := make([]string, 0, 0)
+	for _, text := range t.Tspan {
+		if str := strings.TrimSpace(text); len(str) > 0 {
+			texts = append(texts, str)
+		}
 	}
-	return strings.TrimSpace(text)
+	if text := strings.TrimSpace(t.Value); len(text) > 0 {
+		texts = append(texts, text)
+	}
+	return texts
 }
 
 //func (t srcText) String() string {
