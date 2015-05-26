@@ -38,10 +38,10 @@ func init() {
 
 // SVGBasicSegmentType describes a single curve or position segment
 type SVGBasicSegmentType struct {
-	Cmd   byte // See http://www.w3.org/TR/SVG/paths.html for path command structure
-	Arg   [6]float64
-	Class string
-	Fill  bool
+	Cmd       byte // See http://www.w3.org/TR/SVG/paths.html for path command structure
+	Arg       [6]float64
+	Class     string
+	IsPolygon bool
 }
 
 // SVGBasicType aggregates the information needed to describe a multi-segment
@@ -50,7 +50,7 @@ type SVGBasicType struct {
 	Wd, Ht   float64
 	X, Y     float64
 	Segments [][]SVGBasicSegmentType
-	Styles   CssDef
+	Styles   StylesDef
 	Texts    []textType
 }
 
@@ -58,7 +58,7 @@ type textType struct {
 	Transform                 string
 	Text                      []string
 	Class                     string
-	Style                     CssElemet
+	Style                     *StyleDef
 	matrix                    []float64
 	x, y, fontScale, rotation float64
 }
@@ -79,14 +79,14 @@ func NewTextType(src srcText) textType {
 		} else {
 			a, _ = strconv.ParseFloat(sstr[0], 64)
 			trm := TransformMatrix{a, b, c, d, e, f}
-			fmt.Printf("TM:%v\n", trm)
 			scale, rotation = trm.scaleYAndRotation()
 		}
 	}
+	style := NewStyleDef(src.Style)
 	return textType{Transform: src.Transform,
 		Text:      src.Text(),
 		Class:     src.Class,
-		Style:     parseSvgStyle(src.Style, nil),
+		Style:     style,
 		x:         e,
 		y:         f,
 		fontScale: scale,
@@ -137,10 +137,6 @@ func (t srcText) Text() []string {
 	}
 	return texts
 }
-
-//func (t srcText) String() string {
-//	return fmt.Sprintf("srcText: \n  Transform: %s\n  Text: %s\n  Class: %s\n  Style: %s\n", t.Transform, t.Text(), t.Class, t.Style)
-//}
 
 type srcType struct {
 	ViewBox string        `xml:"viewBox,attr" `
@@ -200,11 +196,10 @@ func pathParse(path srcPathType) (segs []SVGBasicSegmentType, err error) {
 	var (
 		seg                             SVGBasicSegmentType
 		j, argJ, argCount, prevArgCount int
-		fill                            bool
+		isPolygon                       bool
 	)
 	pathStr := path.D
 	seg.Class = path.Class
-	//fmt.Printf("Path str 1 : %s\n", pathStr)
 	setup := func(n int) {
 		// It is not strictly necessary to clear arguments, but result may be clearer
 		// to caller
@@ -218,13 +213,11 @@ func pathParse(path srcPathType) (segs []SVGBasicSegmentType, err error) {
 	var str string
 	var c byte
 	pathStr = pathCmdSub.Replace(pathStr)
-	//fmt.Printf("Path str 2 : %s\n", pathStr)
 	if pLen := len(pathStr); pLen > 0 {
-		fill = pathStr[pLen-1] == 'z'
+		isPolygon = pathStr[pLen-1] == 'z'
 	}
 
 	strList := strings.Fields(pathStr)
-	//fmt.Printf("Fields : %s\n", strList)
 	count := len(strList)
 	for j = 0; j < count && err == nil; j++ {
 		str = strList[j]
@@ -277,7 +270,7 @@ func pathParse(path srcPathType) (segs []SVGBasicSegmentType, err error) {
 		}
 	}
 	for i := range segs {
-		segs[i].Fill = fill
+		segs[i].IsPolygon = isPolygon
 	}
 	return
 }
@@ -328,7 +321,7 @@ func SVGBasicParse(buf []byte) (sig SVGBasicType, err error) {
 				}
 			}
 		}
-		sig.Styles = parseSvgStyles(src.Styles)
+		sig.Styles = NewStylesDef(src.Styles)
 		for _, text := range texts {
 			sig.Texts = append(sig.Texts, NewTextType((text)))
 		}

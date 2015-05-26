@@ -17,14 +17,11 @@
 package gofpdf
 
 import (
-	"encoding/hex"
-	"strconv"
-	"strings"
+//	"fmt"
 )
 
 const (
-	LINE_WIDTH = 0.1
-	FONT_SIZE  = 4.0
+	FONT_SIZE = 4.0
 )
 
 // SVGBasicWrite renders the paths encoded in the basic SVG image specified by
@@ -37,31 +34,29 @@ const (
 //
 // See example 20 for a demonstration of this function.
 func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
-	originX, originY := f.GetXY()
 	var (
 		x, y, newX, newY   float64
 		cx0, cy0, cx1, cy1 float64
 		path               []SVGBasicSegmentType
 		seg                SVGBasicSegmentType
 		points             []PointType
-		prevVals           map[string]string
 	)
-	prevVals = make(map[string]string)
+	originX, originY := f.GetXY()
+	lineW := f.GetLineWidth()
 	val := func(arg int) (float64, float64) {
 		return originX + scale*seg.Arg[arg], originY + scale*seg.Arg[arg+1]
 	}
 	for j := 0; j < len(sb.Segments) && f.Ok(); j++ {
 		path = sb.Segments[j]
-		if len(path) > 0 && path[0].Fill {
+		if len(path) > 0 && path[0].IsPolygon {
 			points = make([]PointType, 0, 6)
 		} else {
 			points = nil
 		}
 		for k := 0; k < len(path) && f.Ok(); k++ {
-			f.SetLineWidth(LINE_WIDTH)
 			class := seg.Class
-			style := sb.getStyle(class)
-			f.SetStyle(style, prevVals)
+			style := sb.Styles.Get(class)
+			f.SetStyle(style)
 
 			seg = path[k]
 			switch seg.Cmd {
@@ -70,7 +65,8 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 				f.SetXY(x, y)
 			case 'L':
 				newX, newY = val(0)
-				f.Line(x, y, newX, newY)
+				l := NewLine(x, y, newX, newY)
+				l.Draw(f, style)
 				x, y = newX, newY
 			case 'C':
 				cx0, cy0 = val(0)
@@ -81,11 +77,14 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			default:
 				f.SetErrorf("Unexpected path command '%c'", seg.Cmd)
 			}
-			if seg.Fill {
+			if seg.IsPolygon {
 				points = append(points, PointType{x, y})
 			}
+			// reset line width
+			f.SetLineWidth(lineW)
 		}
 		if points != nil {
+			// don't drow white polygons
 			c1, c2, c3 := f.GetFillColor()
 			if c1 != 255 || c2 != 255 || c3 != 255 {
 				f.Polygon(points, "F")
@@ -94,68 +93,58 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	}
 }
 
-func (p *Fpdf) SVGTextWrite(sb *SVGBasicType, scale float64) {
-	prevVals := make(map[string]string)
+func (p *Fpdf) SVGWriteTexts(sb *SVGBasicType, scale float64) {
 	for _, text := range sb.Texts {
 		if len(text.Text) == 0 {
 			continue
 		}
-		p.SetStyle(text.Style, prevVals)
-		style := sb.Styles["text."+text.Class]
-		p.SetStyle(style, prevVals)
-		x, y := text.XY()
-		middle := text.Style["text-anchor"] == "middle"
-		fontSize := FONT_SIZE * text.FontScale()
-		p.SetFontSize(fontSize)
-		_, pointsFontSize := p.GetFontSize()
-		yShift := 0.0
-
-		for _, str := range text.Text {
-			p.TransformBegin()
-			tx, ty := (x * scale), ((y * scale) + yShift)
-			if middle {
-				textSize := p.GetStringWidth(str)
-				tx -= textSize / 2
-			}
-			p.TransformTranslate(tx, ty)
-			if text.rotation != 0 {
-				p.TransformRotate(text.rotation, 0, 0)
-			}
-			p.Text(0, 0, str)
-			p.TransformEnd()
-			yShift += pointsFontSize
-		}
-
+		p.SVGWriteText(sb, text, scale)
 	}
 }
 
-func (f *Fpdf) SetStyle(style CssElemet, prevVals map[string]string) {
-	var (
-		key string
-	)
-	key = "stroke"
-	if stroke, found := style[key]; found && stroke != "none" {
-		if prevStroke := prevVals[key]; prevStroke != stroke {
-			color, _ := hex.DecodeString(strings.Replace(stroke, "#", "", -1))
-			f.SetDrawColor(int(color[0]), int(color[1]), int(color[2]))
-			prevVals[key] = stroke
+func (p *Fpdf) SVGWriteText(sb *SVGBasicType, text textType, scale float64) {
+	// set style for class
+	style := sb.Styles["text."+text.Class]
+	p.SetStyle(style)
+	// set style for element
+	p.SetStyle(text.Style)
+	x, y := text.XY()
+	// calc x and y shift
+	shiftRatio := text.Style.BaseLineShift / 100.0
+	fontSize := FONT_SIZE * text.FontScale()
+	p.SetFontSize(fontSize)
+	_, pointsFontSize := p.GetFontSize()
+	yShift := 0.0
+	for _, str := range text.Text {
+		p.TransformBegin()
+		tx, ty := (x * scale), ((y * scale) + yShift)
+		if shiftRatio != 0 {
+			textSize := p.GetStringWidth(str)
+			xShift := float64(textSize * shiftRatio)
+			tx += xShift
 		}
-	}
-	key = "stroke-width"
-	if strokeWidth, found := style[key]; found {
-		if prevStrokeWidth := prevVals[key]; strokeWidth != prevStrokeWidth {
-			w, _ := strconv.ParseFloat(strings.Replace(strokeWidth, "px", "", -1), 32)
-			f.SetLineWidth(LINE_WIDTH * w)
-			prevVals[key] = prevStrokeWidth
+		p.TransformTranslate(tx, ty)
+		if text.rotation != 0 {
+			p.TransformRotate(text.rotation, 0, 0)
 		}
+		p.Text(0, 0, str)
+		p.TransformEnd()
+		// if text is multiline
+		yShift += pointsFontSize
 	}
-	key = "fill"
-	if fill, found := style[key]; found && fill != "none" {
-		if prevFill := prevVals[key]; prevFill != fill {
-			color, _ := hex.DecodeString(strings.Replace(fill, "#", "", -1))
-			f.SetFillColor(int(color[0]), int(color[1]), int(color[2]))
-			f.SetTextColor(int(color[0]), int(color[1]), int(color[2]))
-			prevVals[key] = prevFill
-		}
+}
+
+func (f *Fpdf) SetStyle(style *StyleDef) {
+	if style == nil {
+		return
 	}
+	if style.IsStroke {
+		f.SetDrawColor(style.Stroke[0], style.Stroke[1], style.Stroke[2])
+	}
+	if style.IsFill {
+		f.SetFillColor(style.Fill[0], style.Fill[1], style.Fill[2])
+		f.SetTextColor(style.Fill[0], style.Fill[1], style.Fill[2])
+	}
+	lineW := f.GetLineWidth()
+	f.SetLineWidth(lineW * style.StrokeWidth)
 }
