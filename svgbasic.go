@@ -51,10 +51,10 @@ type SVGBasicType struct {
 	X, Y     float64
 	Segments [][]SVGBasicSegmentType
 	Styles   StylesDef
-	Texts    []textType
+	Texts    []TextType
 }
 
-type textType struct {
+type TextType struct {
 	Transform                 string
 	Text                      []string
 	Class                     string
@@ -63,7 +63,7 @@ type textType struct {
 	x, y, fontScale, rotation float64
 }
 
-func NewTextType(src srcText) textType {
+func NewTextType(src srcText) TextType {
 	var (
 		a, b, c, d, e, f, scale, rotation float64
 	)
@@ -83,7 +83,7 @@ func NewTextType(src srcText) textType {
 		}
 	}
 	style := NewStyleDef(src.Style)
-	return textType{Transform: src.Transform,
+	return TextType{Transform: src.Transform,
 		Text:      src.Text(),
 		Class:     src.Class,
 		Style:     style,
@@ -94,11 +94,11 @@ func NewTextType(src srcText) textType {
 	}
 }
 
-func (t textType) XY() (float64, float64) {
+func (t TextType) XY() (float64, float64) {
 	return t.x, t.y
 }
 
-func (t textType) FontScale() float64 {
+func (t TextType) FontScale() float64 {
 	return t.fontScale
 }
 
@@ -309,16 +309,9 @@ func SVGBasicParse(buf []byte) (sig SVGBasicType, err error) {
 		}
 		sig.Wd, sig.Ht = src.Wd, src.Ht
 		sig.X, sig.Y = rec.X, rec.Y
-
 		for _, path := range paths {
-			if err == nil {
-				segs, err = pathParse(path)
-				if err != nil {
-					fmt.Errorf("Parse path error %v\n", err)
-				}
-				if err == nil {
-					sig.Segments = append(sig.Segments, segs)
-				}
+			if segs, err = pathParse(path); err == nil {
+				sig.Segments = append(sig.Segments, segs)
 			}
 		}
 		sig.Styles = NewStylesDef(src.Styles)

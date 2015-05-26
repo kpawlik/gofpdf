@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	FONT_SIZE = 4.0
+	// FontSize is default font size
+	FontSize = 4.0
 )
 
 // SVGBasicWrite renders the paths encoded in the basic SVG image specified by
@@ -93,47 +94,56 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	}
 }
 
-func (p *Fpdf) SVGWriteTexts(sb *SVGBasicType, scale float64) {
+//
+// SVGWriteTexts writes SVG texts on pdf document
+//
+func (f *Fpdf) SVGWriteTexts(sb *SVGBasicType, scale float64) {
 	for _, text := range sb.Texts {
 		if len(text.Text) == 0 {
 			continue
 		}
-		p.SVGWriteText(sb, text, scale)
+		f.SVGWriteText(sb, text, scale)
 	}
 }
 
-func (p *Fpdf) SVGWriteText(sb *SVGBasicType, text textType, scale float64) {
+//
+// SVGWriteText writes SVG text on pdf document
+//
+func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
 	// set style for class
 	style := sb.Styles["text."+text.Class]
-	p.SetStyle(style)
+	f.SetStyle(style)
 	// set style for element
-	p.SetStyle(text.Style)
+	f.SetStyle(text.Style)
 	x, y := text.XY()
 	// calc x and y shift
 	shiftRatio := text.Style.BaseLineShift / 100.0
-	fontSize := FONT_SIZE * text.FontScale()
-	p.SetFontSize(fontSize)
-	_, pointsFontSize := p.GetFontSize()
+	fontSize := FontSize * text.FontScale()
+	f.SetFontSize(fontSize)
+	_, pointsFontSize := f.GetFontSize()
 	yShift := 0.0
 	for _, str := range text.Text {
-		p.TransformBegin()
+		f.TransformBegin()
 		tx, ty := (x * scale), ((y * scale) + yShift)
 		if shiftRatio != 0 {
-			textSize := p.GetStringWidth(str)
+			textSize := f.GetStringWidth(str)
 			xShift := float64(textSize * shiftRatio)
 			tx += xShift
 		}
-		p.TransformTranslate(tx, ty)
+		f.TransformTranslate(tx, ty)
 		if text.rotation != 0 {
-			p.TransformRotate(text.rotation, 0, 0)
+			f.TransformRotate(text.rotation, 0, 0)
 		}
-		p.Text(0, 0, str)
-		p.TransformEnd()
+		f.Text(0, 0, str)
+		f.TransformEnd()
 		// if text is multiline
 		yShift += pointsFontSize
 	}
 }
 
+//
+// SetStyle sets style color, line width etc. for current style def
+//
 func (f *Fpdf) SetStyle(style *StyleDef) {
 	if style == nil {
 		return
