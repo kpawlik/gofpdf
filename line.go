@@ -1,11 +1,8 @@
 package gofpdf
 
 import (
-	"errors"
-	//	"fmt"
 	"math"
 	"regexp"
-	//"strconv"
 )
 
 var (
@@ -61,15 +58,4 @@ func (l Line) DrawDashed(f *Fpdf, dashArray []float64) {
 	} else if delta > 0 {
 		f.Line(ax, ay, ax+math.Cos(radians)*delta, ay+math.Sin(radians)*delta)
 	}
-}
-
-func parseDash(dash string) (dashArray [2]float64, err error) {
-	strArr := re.FindAllString(dash, -1)
-	if len(strArr) != 2 {
-		err = errors.New("Canot parse dash array for line")
-		return
-	}
-	//dashArray[0] = strconv
-	return
-
 }
