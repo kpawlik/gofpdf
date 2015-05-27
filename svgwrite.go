@@ -123,16 +123,17 @@ func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
 	_, pointsFontSize := f.GetFontSize()
 	yShift := 0.0
 	for _, str := range text.Text {
+		xShift := 0.0
 		f.TransformBegin()
 		tx, ty := (x * scale), ((y * scale) + yShift)
 		if shiftRatio != 0 {
 			textSize := f.GetStringWidth(str)
-			xShift := float64(textSize * shiftRatio)
+			xShift = float64(textSize * shiftRatio)
 			tx += xShift
 		}
 		f.TransformTranslate(tx, ty)
 		if text.rotation != 0 {
-			f.TransformRotate(text.rotation, 0, 0)
+			f.TransformRotate(text.rotation, 0-xShift, 0-yShift)
 		}
 		f.Text(0, 0, str)
 		f.TransformEnd()
