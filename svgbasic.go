@@ -26,7 +26,11 @@ import (
 	"strings"
 )
 
-var pathCmdSub *strings.Replacer
+var (
+	pathCmdSub  *strings.Replacer
+	floatFinder *regexp.Regexp
+	intFinder   *regexp.Regexp
+)
 
 func init() {
 	// Handle permitted constructions like "100L200,230"
@@ -34,6 +38,8 @@ func init() {
 		"L", " L ", "l", " l ",
 		"C", " C ", "c", " c ",
 		"M", " M ", "m", " m ")
+	floatFinder = regexp.MustCompile(`\-{0,1}\d+\.\d+`)
+	intFinder = regexp.MustCompile(`\-{0,1}\d+`)
 }
 
 // SVGBasicSegmentType describes a single curve or position segment
@@ -70,8 +76,8 @@ func NewTextType(src srcText) TextType {
 	var (
 		a, b, c, d, e, f, scale, rotation float64
 	)
-	re := regexp.MustCompile(`\-*\d+\.\d+`)
-	if sstr := re.FindAllString(src.Transform, -1); len(sstr) == 6 {
+	// find transformation matrix
+	if sstr := floatFinder.FindAllString(src.Transform, -1); len(sstr) == 6 {
 		b, _ = strconv.ParseFloat(sstr[1], 64)
 		c, _ = strconv.ParseFloat(sstr[2], 64)
 		d, _ = strconv.ParseFloat(sstr[3], 64)

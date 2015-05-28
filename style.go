@@ -8,14 +8,6 @@ import (
 	"strings"
 )
 
-var (
-	nbrRe *regexp.Regexp
-)
-
-func init() {
-	nbrRe = regexp.MustCompile(`\-{0,1}\d+`)
-}
-
 //StyleDef aggregates data about element style
 type StyleDef struct {
 	StringMap     map[string]string
@@ -94,12 +86,12 @@ func (ce *StyleDef) Set(key, value string) {
 			ce.IsFill = true
 		}
 	case "stroke-dasharray":
-		for _, str := range nbrRe.FindAllString(value, -1) {
+		for _, str := range intFinder.FindAllString(value, -1) {
 			f, _ := strconv.ParseFloat(str, 64)
 			ce.DashArray = append(ce.DashArray, f)
 		}
 	case "baseline-shift":
-		if str := nbrRe.FindString(value); len(str) > 0 {
+		if str := intFinder.FindString(value); len(str) > 0 {
 			shift, _ := strconv.ParseFloat(str, 64)
 			ce.BaseLineShift = shift
 		}

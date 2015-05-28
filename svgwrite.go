@@ -59,7 +59,6 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			class := seg.Class
 			style := sb.Styles.Get(class)
 			f.SetStyle(style)
-
 			seg = path[k]
 			switch seg.Cmd {
 			case 'M':
@@ -81,8 +80,8 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 			}
 			if seg.IsPolygon {
 				polygon = append(polygon, PointType{x, y})
+				// cache style for polygon
 				polygonStyle = style
-
 			}
 			// reset line width
 			f.SetLineWidth(lineW)
@@ -98,21 +97,16 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	}
 }
 
-//
-// SVGWriteTexts writes SVG texts on pdf document
-//
+// SVGWriteTexts writes SVG texts on PDF document
 func (f *Fpdf) SVGWriteTexts(sb *SVGBasicType, scale float64) {
 	for _, text := range sb.Texts {
-		if len(text.Text) == 0 {
-			continue
+		if len(text.Text) != 0 {
+			f.SVGWriteText(sb, text, scale)
 		}
-		f.SVGWriteText(sb, text, scale)
 	}
 }
 
-//
-// SVGWriteText writes SVG text on pdf document
-//
+// SVGWriteText writes, transform and rotate SVG text on PDF document
 func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
 	// merge elemet style with class style
 	style := text.Style
@@ -146,9 +140,8 @@ func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
 	}
 }
 
-//
-// SetStyle sets style color, line width etc. for current style def
-//
+// SetStyle sets style (color, line width etc.) for current PDF file
+// from StyleDef
 func (f *Fpdf) SetStyle(style *StyleDef) {
 	if style == nil {
 		return

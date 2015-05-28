@@ -33,7 +33,7 @@ func (l Line) DrawDashed(f *Fpdf, dashArray []float64) {
 	//
 	// algorithm source: https://deepanjandas.wordpress.com/2010/06/17/draw-dashed-line-in-flash/
 	//
-	if len(dashArray) != 2 {
+	if len(dashArray) < 2 {
 		return
 	}
 	stroke, gap := dashArray[0]/6, dashArray[1]/6
