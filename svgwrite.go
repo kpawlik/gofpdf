@@ -40,7 +40,8 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 		cx0, cy0, cx1, cy1 float64
 		path               []SVGBasicSegmentType
 		seg                SVGBasicSegmentType
-		points             []PointType
+		polygon            []PointType
+		polygonStyle       *StyleDef
 	)
 	originX, originY := f.GetXY()
 	lineW := f.GetLineWidth()
@@ -50,9 +51,9 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 	for j := 0; j < len(sb.Segments) && f.Ok(); j++ {
 		path = sb.Segments[j]
 		if len(path) > 0 && path[0].IsPolygon {
-			points = make([]PointType, 0, 6)
+			polygon = make([]PointType, 0, 6)
 		} else {
-			points = nil
+			polygon = nil
 		}
 		for k := 0; k < len(path) && f.Ok(); k++ {
 			class := seg.Class
@@ -79,16 +80,19 @@ func (f *Fpdf) SVGBasicWrite(sb *SVGBasicType, scale float64) {
 				f.SetErrorf("Unexpected path command '%c'", seg.Cmd)
 			}
 			if seg.IsPolygon {
-				points = append(points, PointType{x, y})
+				polygon = append(polygon, PointType{x, y})
+				polygonStyle = style
+
 			}
 			// reset line width
 			f.SetLineWidth(lineW)
 		}
-		if points != nil {
+		if polygon != nil {
 			// don't drow white polygons
 			c1, c2, c3 := f.GetFillColor()
 			if c1 != 255 || c2 != 255 || c3 != 255 {
-				f.Polygon(points, "F")
+				f.SetStyle(polygonStyle)
+				f.Polygon(polygon, "F")
 			}
 		}
 	}
@@ -110,11 +114,11 @@ func (f *Fpdf) SVGWriteTexts(sb *SVGBasicType, scale float64) {
 // SVGWriteText writes SVG text on pdf document
 //
 func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
-	// set style for class
-	style := sb.Styles["text."+text.Class]
-	f.SetStyle(style)
+	// merge elemet style with class style
+	style := text.Style
+	style.Extend(sb.Styles.Get(text.Class))
 	// set style for element
-	f.SetStyle(text.Style)
+	f.SetStyle(style)
 	x, y := text.XY()
 	// calc x and y shift
 	shiftRatio := text.Style.BaseLineShift / 100.0
@@ -155,6 +159,11 @@ func (f *Fpdf) SetStyle(style *StyleDef) {
 	if style.IsFill {
 		f.SetFillColor(style.Fill[0], style.Fill[1], style.Fill[2])
 		f.SetTextColor(style.Fill[0], style.Fill[1], style.Fill[2])
+	}
+	if style.IsBold {
+		f.SetFont("", "B", 0)
+	} else {
+		f.SetFont("", "", 0)
 	}
 	lineW := f.GetLineWidth()
 	f.SetLineWidth(lineW * style.StrokeWidth)

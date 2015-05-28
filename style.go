@@ -2,15 +2,21 @@ package gofpdf
 
 import (
 	"encoding/hex"
+	//	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
 var (
-	nbrRe *regexp.Regexp = regexp.MustCompile(`\-{0,1}\d+`)
+	nbrRe *regexp.Regexp
 )
 
+func init() {
+	nbrRe = regexp.MustCompile(`\-{0,1}\d+`)
+}
+
+//StyleDef aggregates data about element style
 type StyleDef struct {
 	StringMap     map[string]string
 	DashArray     []float64
@@ -20,19 +26,18 @@ type StyleDef struct {
 	IsStroke      bool
 	StrokeWidth   float64
 	BaseLineShift float64
+	IsBold        bool
 }
 
 //
-// Creates new empty StyleDef record
-//
+// NewEmptyStyleDef creates new empty StyleDef record
 func NewEmptyStyleDef() *StyleDef {
 	sm := make(map[string]string)
 	return &StyleDef{StringMap: sm, StrokeWidth: 1.0}
 }
 
 //
-// Returns new instance of StyleDef from string
-//
+// NewStyleDef returns new instance of StyleDef from string
 func NewStyleDef(str string) *StyleDef {
 	ce := NewEmptyStyleDef()
 	ce.Append(str)
@@ -40,8 +45,7 @@ func NewStyleDef(str string) *StyleDef {
 }
 
 //
-// Adds attribute to style def
-//
+// Append adds attribute to style def
 func (ce *StyleDef) Append(str string) {
 	for _, cssElems := range strings.Split(str, ";") {
 		if len(cssElems) == 0 {
@@ -52,9 +56,19 @@ func (ce *StyleDef) Append(str string) {
 	}
 }
 
+// Extend cureent styledef about data from another styledef
+func (ce *StyleDef) Extend(style *StyleDef) {
+	if ce == nil {
+		return
+	}
+	for k, v := range style.StringMap {
+		ce.Set(k, v)
+	}
+
+}
+
 //
-// Getter for style def
-//
+// Get is a getter for style def
 func (ce *StyleDef) Get(key string) (string, bool) {
 	val, ok := ce.StringMap[key]
 	return val, ok
@@ -89,59 +103,77 @@ func (ce *StyleDef) Set(key, value string) {
 			shift, _ := strconv.ParseFloat(str, 64)
 			ce.BaseLineShift = shift
 		}
+	case "font-weight":
+		ce.IsBold = value == "bold"
 	}
 
 }
 
-//
-// Returns true if Style definition contains attribute equal to value
-//
+// Check returns true if Style definition contains attribute equal to value
 func (ce StyleDef) Check(key, value string) bool {
-	if val, ok := ce.StringMap[key]; !ok {
+	var (
+		val string
+		ok  bool
+	)
+	if val, ok = ce.StringMap[key]; !ok {
 		return false
-	} else {
-		return val == value
 	}
-
+	return val == value
 }
 
-//*************************
 //
-// Stores styles for classes
-//
+// StylesDef stores styles for classes
 type StylesDef map[string]*StyleDef
 
+// NewEmptyStylesDef create new empty styles def
 func NewEmptyStylesDef() StylesDef {
 	return make(StylesDef)
 }
 
+// NewStylesDef create new empty styles def from strings
 func NewStylesDef(styles []string) StylesDef {
+
 	stylesDef := NewEmptyStylesDef()
 	re := regexp.MustCompile(`([\*|\w|\-|\.]+)\s*\{(.*)\}`)
 	for _, style := range styles {
 		for _, s := range re.FindAllStringSubmatch(style, -1) {
+			shortClass := ""
 			class := strings.TrimSpace(s[1])
+			if parts := strings.Split(class, "."); len(parts) == 2 {
+				shortClass = parts[1]
+			}
 			styleContent := s[2]
 			elemDef := stylesDef.Get(class)
 			elemDef.Append(styleContent)
+			if len(shortClass) > 0 {
+				stylesDef[shortClass] = elemDef
+			}
 		}
 	}
 	return stylesDef
 }
 
 //
-// Returns existing StyleDef from key. If does not exists then
+// Get returns existing StyleDef from key. If does not exists then
 // creates new one add with key and returns.
 // Search order:
 //  1. search for class
 //  2. search for "*."+class
+//  3. search for "text."+class
 //  3. return empty style def
 //
 func (cd StylesDef) Get(class string) *StyleDef {
+	if len(class) == 0 {
+		return nil
+	}
+
 	if style, ok := cd[class]; ok {
 		return style
 	}
 	if style, ok := cd["*."+class]; ok {
+		return style
+	}
+	if style, ok := cd["text."+class]; ok {
 		return style
 	}
 	style := NewEmptyStyleDef()
