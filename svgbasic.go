@@ -54,6 +54,8 @@ type SVGBasicType struct {
 	Texts    []TextType
 }
 
+//
+// TextType aggregates informations about Text and his transformation, style, abd style class
 type TextType struct {
 	Transform                 string
 	Text                      []string
@@ -63,6 +65,7 @@ type TextType struct {
 	x, y, fontScale, rotation float64
 }
 
+// NewTextType parsing and creates new TextType from string
 func NewTextType(src srcText) TextType {
 	var (
 		a, b, c, d, e, f, scale, rotation float64
@@ -94,10 +97,12 @@ func NewTextType(src srcText) TextType {
 	}
 }
 
+// XY returns coordinates of text
 func (t TextType) XY() (float64, float64) {
 	return t.x, t.y
 }
 
+// FontScale returns font scale for TextType
 func (t TextType) FontScale() float64 {
 	return t.fontScale
 }
