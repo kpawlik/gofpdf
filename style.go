@@ -19,13 +19,17 @@ type StyleDef struct {
 	StrokeWidth   float64
 	BaseLineShift float64
 	IsBold        bool
+	Opacity       float64
 }
 
 //
 // NewEmptyStyleDef creates new empty StyleDef record
 func NewEmptyStyleDef() *StyleDef {
 	sm := make(map[string]string)
-	return &StyleDef{StringMap: sm, StrokeWidth: 1.0}
+	return &StyleDef{
+		StringMap:   sm,
+		StrokeWidth: 1.0,
+		Opacity:     1.0}
 }
 
 //
@@ -97,6 +101,9 @@ func (ce *StyleDef) Set(key, value string) {
 		}
 	case "font-weight":
 		ce.IsBold = value == "bold"
+	case "fill-opacity":
+		f, _ := strconv.ParseFloat(value, 64)
+		ce.Opacity = f
 	}
 
 }

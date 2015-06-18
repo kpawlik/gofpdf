@@ -158,6 +158,9 @@ func (f *Fpdf) SetStyle(style *StyleDef) {
 	} else {
 		f.SetFont("", "", 0)
 	}
+	// Set opacity
+	f.SetAlpha(style.Opacity, "Normal")
+	// set line width
 	lineW := f.GetLineWidth()
 	f.SetLineWidth(lineW * style.StrokeWidth)
 }
