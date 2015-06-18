@@ -20,11 +20,6 @@ import (
 //	"fmt"
 )
 
-const (
-	// FontSize is default font size
-	FontSize = 4.0
-)
-
 // SVGBasicWrite renders the paths encoded in the basic SVG image specified by
 // sb. The scale value is used to convert the coordinates in the path to the
 // unit of measure specified in New(). The current position (as set with a call
@@ -116,19 +111,19 @@ func (f *Fpdf) SVGWriteText(sb *SVGBasicType, text TextType, scale float64) {
 	x, y := text.XY()
 	// calc x and y shift
 	shiftRatio := text.Style.BaseLineShift / 100.0
-	fontSize := FontSize * text.FontScale()
+
+	fontSize := style.FontSize * text.FontScale()
 	f.SetFontSize(fontSize)
 	_, pointsFontSize := f.GetFontSize()
 	yShift := 0.0
 	for _, str := range text.Text {
 		xShift := 0.0
-		f.TransformBegin()
-		tx, ty := (x * scale), ((y * scale) + yShift)
 		if shiftRatio != 0 {
 			textSize := f.GetStringWidth(str)
-			xShift = float64(textSize * shiftRatio)
-			tx += xShift
+			xShift = textSize * shiftRatio
 		}
+		f.TransformBegin()
+		tx, ty := ((x * scale) + xShift), ((y * scale) + yShift)
 		f.TransformTranslate(tx, ty)
 		if text.rotation != 0 {
 			f.TransformRotate(text.rotation, 0-xShift, 0-yShift)

@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	// FontSize is default font size
+	FontSize = 4.0
+)
+
 //StyleDef aggregates data about element style
 type StyleDef struct {
 	StringMap     map[string]string
@@ -20,6 +25,7 @@ type StyleDef struct {
 	BaseLineShift float64
 	IsBold        bool
 	Opacity       float64
+	FontSize      float64
 }
 
 //
@@ -29,7 +35,8 @@ func NewEmptyStyleDef() *StyleDef {
 	return &StyleDef{
 		StringMap:   sm,
 		StrokeWidth: 1.0,
-		Opacity:     1.0}
+		Opacity:     1.0,
+		FontSize:    FontSize}
 }
 
 //
@@ -94,16 +101,25 @@ func (ce *StyleDef) Set(key, value string) {
 			f, _ := strconv.ParseFloat(str, 64)
 			ce.DashArray = append(ce.DashArray, f)
 		}
-	case "baseline-shift":
-		if str := intFinder.FindString(value); len(str) > 0 {
-			shift, _ := strconv.ParseFloat(str, 64)
-			ce.BaseLineShift = shift
+	case "text-anchor":
+		// percentage value of horizontal align by anchor(-50 center, 0 - left, -100 right)
+		switch value {
+		case "middle":
+			ce.BaseLineShift = -50
+		case "start":
+			ce.BaseLineShift = 0
+		case "end":
+			ce.BaseLineShift = -100
 		}
 	case "font-weight":
 		ce.IsBold = value == "bold"
 	case "fill-opacity":
 		f, _ := strconv.ParseFloat(value, 64)
 		ce.Opacity = f
+	case "font-size":
+		f, _ := strconv.ParseFloat(value, 64)
+		// scale font size
+		ce.FontSize = f / FontSize
 	}
 
 }
